@@ -2,10 +2,16 @@
 mod ffi;
 mod protocol;
 mod tun;
-use std::{ffi::CString, io::Read, os::fd::FromRawFd};
+use std::{
+    ffi::CString,
+    io::{Read, Write},
+    os::fd::FromRawFd,
+};
 
 use protocol::{IpPacket, UdpPacket};
 use tun::{set_tun_ip, set_tun_route};
+
+use crate::protocol::udp_echo;
 
 fn main() {
     // let dev_name = "tun0" as *const str as *const c_char;
@@ -24,10 +30,15 @@ fn main() {
         let n = file.read(&mut buf).unwrap();
         let ip_packet = IpPacket::new(&buf[..n]);
         println!("{ip_packet:#?}");
-        let udp_packet_start = ip_packet.ihl as usize * 4;
-        let udp_packet_end = ip_packet.total_len as usize;
-        let ip_packet_data = &buf[udp_packet_start..udp_packet_end];
-        let udp_pack = UdpPacket::new(ip_packet_data);
-        println!("{udp_pack:#?}");
+        if ip_packet.version == 4 {
+            let udp_packet_start = ip_packet.ihl as usize * 4;
+            let udp_packet_end = ip_packet.total_len as usize;
+            let ip_packet_data = &buf[udp_packet_start..udp_packet_end];
+            let udp_packet = UdpPacket::new(ip_packet_data);
+            println!("{udp_packet:#?}");
+            let mut resp = udp_echo(ip_packet, udp_packet);
+            println!("resp: {:#?}", resp);
+            file.write_all(&mut resp);
+        }
     }
 }
