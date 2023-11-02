@@ -37,24 +37,24 @@ impl IpPacket {
 
 impl Into<Vec<u8>> for IpPacket {
     fn into(self) -> Vec<u8> {
-        let mut buf = vec![0u8; self.total_len as usize];
-        buf[0] = self.version << 4 | self.ihl;
-        buf[1] = self.tos;
-        buf[2..4].copy_from_slice(&self.total_len.to_be_bytes());
-        buf[4..6].copy_from_slice(&self.id.to_be_bytes());
-        buf[6] = self.flags << 5 | (self.frag_offset >> 8) as u8;
-        buf[7] = self.frag_offset as u8;
-        buf[8] = self.ttl;
-        buf[9] = self.protocol;
-        buf[10..12].copy_from_slice(&self.checksum.to_be_bytes());
-        buf[12..13].copy_from_slice(&self.src_ip.0.to_be_bytes());
-        buf[13..14].copy_from_slice(&self.src_ip.1.to_be_bytes());
-        buf[14..15].copy_from_slice(&self.src_ip.2.to_be_bytes());
-        buf[15..16].copy_from_slice(&self.src_ip.3.to_be_bytes());
-        buf[16..17].copy_from_slice(&self.dst_ip.0.to_be_bytes());
-        buf[17..18].copy_from_slice(&self.dst_ip.1.to_be_bytes());
-        buf[18..19].copy_from_slice(&self.dst_ip.2.to_be_bytes());
-        buf[19..20].copy_from_slice(&self.dst_ip.3.to_be_bytes());
+        let mut buf = Vec::with_capacity(self.total_len as usize);
+        buf.push(self.version << 4 | self.ihl);
+        buf.push(self.tos);
+        buf.extend_from_slice(&self.total_len.to_be_bytes());
+        buf.extend_from_slice(&self.id.to_be_bytes());
+        buf.push(self.flags << 5 | (self.frag_offset >> 8) as u8);
+        buf.push(self.frag_offset as u8);
+        buf.push(self.ttl);
+        buf.push(self.protocol);
+        buf.extend_from_slice(&self.checksum.to_be_bytes());
+        buf.extend_from_slice(&self.src_ip.0.to_be_bytes());
+        buf.extend_from_slice(&self.src_ip.1.to_be_bytes());
+        buf.extend_from_slice(&self.src_ip.2.to_be_bytes());
+        buf.extend_from_slice(&self.src_ip.3.to_be_bytes());
+        buf.extend_from_slice(&self.dst_ip.0.to_be_bytes());
+        buf.extend_from_slice(&self.dst_ip.1.to_be_bytes());
+        buf.extend_from_slice(&self.dst_ip.2.to_be_bytes());
+        buf.extend_from_slice(&self.dst_ip.3.to_be_bytes());
         buf
     }
 }
@@ -136,19 +136,18 @@ pub fn udp_echo(mut ip_packet: IpPacket, mut udp_packet: UdpPacket) -> Vec<u8> {
     checksum += u16::from_be_bytes([ip_packet.src_ip.2, ip_packet.src_ip.3]) as u32;
     checksum += u16::from_be_bytes([ip_packet.dst_ip.0, ip_packet.dst_ip.1]) as u32;
     checksum += u16::from_be_bytes([ip_packet.dst_ip.2, ip_packet.dst_ip.3]) as u32;
+    checksum += u16::from_be_bytes([0u8, 17u8]) as u32;
+    checksum += udp_packet.len as u32;
+
     checksum += udp_packet.src_port as u32;
     checksum += udp_packet.dst_port as u32;
     checksum += udp_packet.len as u32;
-    let udp_data_end = udp_packet.data.len() - 8 - 1;
+    let udp_data_end = (udp_packet.len - 8 - 1) as usize;
     let mut index = 1;
     while index <= udp_data_end {
         checksum += u16::from_be_bytes([udp_packet.data[index - 1], udp_packet.data[index]]) as u32;
         index += 2;
     }
-
-    // 0 1 2 3 4 5 6
-    // 1 2 3 4 5 6 7
-
     if index - udp_data_end == 1 {
         checksum += u16::from_be_bytes([udp_packet.data[udp_data_end], 0]) as u32;
     }
@@ -157,8 +156,25 @@ pub fn udp_echo(mut ip_packet: IpPacket, mut udp_packet: UdpPacket) -> Vec<u8> {
         checksum = (checksum & 0xffff) + (checksum >> 16);
     }
     udp_packet.checksum = !(checksum as u16);
-
     let mut resp: Vec<u8> = ip_packet.into();
-    resp.append(&mut udp_packet.into());
+    let mut udp_bytes: Vec<u8> = udp_packet.into();
+    resp.extend(udp_bytes);
     resp
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_vec() {
+        // let mut a = Vec::with_capacity(4);
+        let mut a = vec![0u8; 4];
+        a[0] = 1;
+        a[1] = 2;
+        let mut b = Vec::with_capacity(4);
+        b[0] = 3;
+        b[1] = 4;
+        a.extend(b);
+        println!("{:?}", a);
+    }
 }
