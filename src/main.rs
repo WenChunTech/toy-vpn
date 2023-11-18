@@ -29,8 +29,7 @@ fn main() {
         let mut buf = [0u8; 1024];
         let n = file.read(&mut buf).unwrap();
         let ip_packet = IpPacket::new(&buf[..n]);
-        // println!("{ip_packet:#?}");
-        if ip_packet.version == 4 {
+        if ip_packet.version == 4 && ip_packet.protocol == 17 {
             let udp_packet_start = ip_packet.ihl as usize * 4;
             let udp_packet_end = ip_packet.total_len as usize;
             let ip_packet_data = &buf[udp_packet_start..udp_packet_end];
